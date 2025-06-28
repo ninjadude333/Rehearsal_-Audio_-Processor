@@ -9,8 +9,9 @@ A Python-based command-line tool for efficiently processing long rehearsal or pe
 - 📊 **Waveform & dBFS Visualization**: Plot waveform and loudness profiles
 - 🧠 **Smart Silence Threshold**: Analyze audio profile to recommend optimal silence detection threshold
 - 🚀 **Auto Mode**: For batch runs—accepts all defaults, no prompts or popups
-- 🔄 **Convert Input**: Optionally convert any audio format to WAV/PCM for better performance
-- 💾 **Output to MP3**: Convert results back to MP3 after processing
+- 🔄 **Auto-Convert**: Automatically converts non-WAV files to WAV for optimal performance
+- 💾 **Format Choice**: Choose to keep WAV output or convert back to original format
+- 🧹 **Smart Cleanup**: Automatically manages temporary files during processing
 
 ## 🛠️ Installation
 
@@ -26,7 +27,26 @@ A Python-based command-line tool for efficiently processing long rehearsal or pe
 
 ## 🚀 Usage
 
-### Basic Usage
+### Song Finder (NEW!)
+
+Find specific songs in rehearsal recordings:
+
+```bash
+# Find "Don't Stop Me Now" in rehearsal folder
+python song_finder.py "C:\path\to\rehearsals" "Don't Stop Me Now"
+
+# Or use batch file (Windows)
+find_song.bat "C:\path\to\rehearsals" "Don't Stop Me Now"
+```
+
+Outputs CSV with:
+- File name where song was found
+- Time code when song starts (MM:SS)
+- Detected song title and artist
+- Detection confidence
+
+### Single File Processing
+
 ```bash
 python main.py "input.mp3" --mode split
 ```
@@ -77,9 +97,15 @@ python main.py recording.mp3 --mode split --auto --convert --mp3_out --output ./
 - Outputs: `filename_segment_1.wav`, `filename_segment_2.wav`, etc.
 
 ### Trim Mode
+- Uses optimized split-and-stitch approach for faster processing
 - Removes all silent sections from the audio
 - Combines all non-silent segments into a single continuous file
 - Output: `filename_trimmed.wav`
+
+### Auto-Conversion
+- Non-WAV files are automatically converted to WAV for optimal performance
+- After processing, you can choose to keep WAV output or convert back to original format
+- Temporary files are automatically cleaned up
 
 ## 📊 Visualization Features
 
@@ -133,10 +159,9 @@ Performance test your audio processing with the included benchmark tool:
 python benchmark.py "input.mp3" --output benchmark_results
 ```
 
-The benchmark runs three test scenarios:
-- **MP3 trim - no convert**: Direct MP3 processing
-- **WAV trim - with convert**: Convert to WAV first, then trim
-- **WAV split - with convert**: Convert to WAV first, then split
+The benchmark runs test scenarios with auto-conversion:
+- **Auto-convert trim**: Automatically converts input and trims silence
+- **Auto-convert split**: Automatically converts input and splits by silence
 
 Results are saved to `benchmark_summary.csv` with metrics for duration, memory usage, output files, and total size.
 

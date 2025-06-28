@@ -6,7 +6,6 @@ import argparse
 import logging
 from pathlib import Path
 from main import process_file
-from utils import convert_to_wav, convert_to_mp3
 import csv
 
 # Suppress logging during benchmark
@@ -19,7 +18,7 @@ def get_stats(start_time):
     return duration, mem
 
 
-def run_test_case(name, input_path, output_dir, convert=False, mode="trim"):
+def run_test_case(name, input_path, output_dir, mode="trim"):
     print(f"\n[INFO] Running test: {name}")
 
     try:
@@ -27,17 +26,11 @@ def run_test_case(name, input_path, output_dir, convert=False, mode="trim"):
         test_output_dir = Path(output_dir) / name.replace(" ", "_").lower()
         test_output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Convert to WAV if needed
-        if convert:
-            wav_path = convert_to_wav(input_path, str(test_output_dir))
-        else:
-            wav_path = input_path
-
-        # Run process with fixed threshold
+        # Run process with fixed threshold (auto-converts internally)
         tracemalloc.start()
         start_time = time.time()
         process_file(
-            filepath=str(wav_path),
+            filepath=str(input_path),
             output_dir=str(test_output_dir),
             mode=mode,
             silence_thresh=-35,  # Fixed threshold to avoid auto-detection
@@ -93,26 +86,16 @@ def main():
     results = []
 
     results.append(run_test_case(
-        name="MP3 trim - no convert",
+        name="Auto-convert trim",
         input_path=args.input,
         output_dir=args.output,
-        convert=False,
         mode="trim"
     ))
 
     results.append(run_test_case(
-        name="WAV trim - with convert",
+        name="Auto-convert split",
         input_path=args.input,
         output_dir=args.output,
-        convert=True,
-        mode="trim"
-    ))
-
-    results.append(run_test_case(
-        name="WAV split - with convert",
-        input_path=args.input,
-        output_dir=args.output,
-        convert=True,
         mode="split"
     ))
 

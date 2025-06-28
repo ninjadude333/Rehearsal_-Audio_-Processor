@@ -16,9 +16,11 @@ def analyze_audio(filepath):
 
 def plot_waveform(audio):
     if isinstance(audio, AudioSegment):
-        y = np.array(audio.get_array_of_samples())
+        y = np.array(audio.get_array_of_samples(), dtype=np.float32)
         if audio.channels == 2:
             y = y.reshape((-1, 2))
+        # Normalize to [-1, 1] range (assuming 16-bit samples)
+        y = y / 32768.0
         sr = audio.frame_rate
     else:
         y, sr = audio
@@ -76,8 +78,11 @@ def recommend_silence_threshold(audio):
     return int(round(peak_bin - 5))  # Slightly below peak for better detection
 
 
-def convert_to_pcm(input_path, output_path):
-    wav_path = str(output_path.with_suffix(".wav"))
+def convert_to_pcm(input_path, output_dir=None):
+    if output_dir is None:
+        output_dir = os.path.dirname(input_path)
+    base_name = os.path.splitext(os.path.basename(input_path))[0]
+    wav_path = os.path.join(output_dir, base_name + "_temp.wav")
     cmd = [
         "ffmpeg", "-y", "-i", str(input_path),
         "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", wav_path

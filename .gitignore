@@ -3,7 +3,7 @@ venv/
 env/
 .venv/
 .env/
-
+songs/*.mp3
 # Python
 __pycache__/
 *.py[cod]

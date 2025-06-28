@@ -4,13 +4,15 @@ A Python-based command-line tool for efficiently processing long rehearsal or pe
 
 ## Features
 
-- 🔊 **Trim**: Remove silent sections from a full audio recording.
-- ✂️ **Split**: Automatically split audio into multiple files based on detected silence.
-- 📊 **Waveform & dBFS Visualization**: Plot waveform and loudness profiles.
-- 🧠 **Smart Silence Threshold**: Analyze audio profile to recommend optimal silence detection threshold.
-- 🚀 **Auto Mode**: For batch runs—accepts all defaults, no prompts or popups.
-- 🔄 **Convert Input**: Optionally convert any audio format to WAV/PCM for better performance.
-- 💾 **Output to MP3**: Convert results back to MP3 after processing.
+- 🎯 **Song Finder**: Find specific songs in rehearsal recordings with timestamps
+- 🔊 **Trim**: Remove silent sections from a full audio recording
+- ✂️ **Split**: Automatically split audio into multiple files based on detected silence
+- 📊 **Waveform & dBFS Visualization**: Plot waveform and loudness profiles
+- 🧠 **Smart Silence Threshold**: Analyze audio profile to recommend optimal silence detection threshold
+- 🚀 **Auto Mode**: For batch runs—accepts all defaults, no prompts or popups
+- 🔄 **Auto-Convert**: Automatically converts non-WAV files to WAV for optimal performance
+- 💾 **Format Choice**: Choose to keep WAV output or convert back to original format
+- 🧹 **Smart Cleanup**: Automatically manages temporary files during processing
 
 ---
 
@@ -25,6 +27,18 @@ Ensure `ffmpeg` is installed and available in your system PATH.
 ---
 
 ## Usage
+
+### Song Finder (MVP)
+
+```bash
+# Find specific song in rehearsal folder
+python song_finder.py "folder_path" "song_name"
+
+# Example
+python song_finder.py "C:\Rehearsals" "Don't Stop Me Now"
+```
+
+### Audio Processing
 
 ```bash
 python main.py "input.mp3" --mode split

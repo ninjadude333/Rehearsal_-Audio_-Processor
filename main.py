@@ -14,13 +14,18 @@ from utils import (
     convert_to_pcm,
     export_to_mp3
 )
+from musicAnalyzer import MusicAnalyzer
 
-def process_file(filepath, output_dir, mode, silence_thresh, min_silence_len, keep_silence, plot, dbfs_plot, convert, auto, mp3_out):
+def process_file(filepath, output_dir, mode, silence_thresh, min_silence_len, keep_silence, plot, dbfs_plot, convert, auto, mp3_out, song_detector=False):
     logging.info(f"Processing file: {filepath}")
     
-    if convert:
-        logging.info("Converting to PCM WAV...")
-        filepath = convert_to_pcm(filepath)
+    original_ext = os.path.splitext(filepath)[1].lower()
+    converted_to_wav = False
+    
+    if original_ext != '.wav' or convert:
+        logging.info("Converting to PCM WAV for better performance...")
+        filepath = convert_to_pcm(filepath, output_dir)
+        converted_to_wav = True
 
     audio = AudioSegment.from_file(filepath)
     duration = len(audio) / 1000
@@ -65,15 +70,68 @@ def process_file(filepath, output_dir, mode, silence_thresh, min_silence_len, ke
             if mp3_out:
                 export_to_mp3(out_path)
     elif mode == "trim":
+        # Use split approach for faster processing
+        temp_files = []
+        for i, (start, end) in enumerate(segments):
+            segment = audio[start:end]
+            temp_path = os.path.join(output_dir, f"temp_segment_{i}.wav")
+            segment.export(temp_path, format="wav")
+            temp_files.append(temp_path)
+        
+        # Stitch all parts together
         combined = AudioSegment.empty()
-        for start, end in segments:
-            combined += audio[start:end]
+        for temp_file in temp_files:
+            combined += AudioSegment.from_wav(temp_file)
+        
         filename = os.path.basename(filepath).rsplit('.', 1)[0] + "_trimmed.wav"
         out_path = os.path.join(output_dir, filename)
         combined.export(out_path, format="wav")
         logging.info(f"Exported trimmed file: {out_path}")
+        
+        # Clean up temporary files
+        for temp_file in temp_files:
+            os.remove(temp_file)
+        
         if mp3_out:
             export_to_mp3(out_path)
+    
+    # Ask user about output format if we converted to WAV
+    if converted_to_wav and not auto:
+        choice = input(f"Keep WAV output or convert to original format ({original_ext})? [w=WAV / o=original]: ").lower()
+        if choice == 'o':
+            if mode == "split":
+                wav_files = [f for f in os.listdir(output_dir) if f.endswith('.wav') and 'segment' in f]
+                for wav_file in wav_files:
+                    wav_path = os.path.join(output_dir, wav_file)
+                    if original_ext == '.mp3':
+                        export_to_mp3(wav_path)
+                        os.remove(wav_path)
+            elif mode == "trim":
+                if original_ext == '.mp3':
+                    export_to_mp3(out_path)
+                    os.remove(out_path)
+    
+    # Song detection if requested
+    if song_detector:
+        logging.info("Running song detection...")
+        analyzer = MusicAnalyzer()
+        if mode == "split" and segments:
+            # Analyze each segment
+            song_results = analyzer.analyze_with_silence_detection(filepath, segments, output_dir)
+            csv_path = os.path.join(output_dir, "song_detection_segments.csv")
+        else:
+            # Analyze entire file
+            song_results = analyzer.analyze_audio_file(filepath, output_dir)
+            csv_path = os.path.join(output_dir, "song_detection_timeline.csv")
+        
+        if song_results:
+            analyzer.save_results_csv(song_results, csv_path)
+            detected = sum(1 for r in song_results if r['song'] != 'undetected')
+            logging.info(f"Song detection: {detected}/{len(song_results)} detected")
+    
+    # Clean up temporary WAV file
+    if converted_to_wav and '_temp.wav' in filepath:
+        os.remove(filepath)
 
 
 def main():
@@ -89,6 +147,7 @@ def main():
     parser.add_argument("--convert", action="store_true", help="Convert input to WAV/PCM before processing")
     parser.add_argument("--auto", action="store_true", help="Auto accept recommended threshold")
     parser.add_argument("--mp3_out", action="store_true", help="Convert final output to MP3")
+    parser.add_argument("--songDetector", action="store_true", help="Detect songs and output CSV")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -111,7 +170,8 @@ def main():
         dbfs_plot=args.dbfs_plot if not args.auto else False,
         convert=args.convert,
         auto=args.auto,
-        mp3_out=args.mp3_out
+        mp3_out=args.mp3_out,
+        song_detector=args.songDetector
     )
     total = time.time() - start_time
     logging.info(f"Finished processing {args.input} in {total:.2f} seconds")
