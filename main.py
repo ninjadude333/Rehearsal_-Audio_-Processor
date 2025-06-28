@@ -1,137 +1,121 @@
 import os
 import argparse
+import tempfile
+import shutil
 import logging
 import time
-from pathlib import Path
+
 from pydub import AudioSegment, silence
-from datetime import datetime
-import numpy as np
-import matplotlib.pyplot as plt
+from utils import (
+    analyze_audio,
+    plot_waveform,
+    plot_dbfs,
+    recommend_silence_threshold,
+    convert_to_pcm,
+    export_to_mp3
+)
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
-
-def print_audio_metadata(audio, filepath):
-    duration_sec = len(audio) / 1000.0
-    file_size = Path(filepath).stat().st_size / (1024 * 1024)
-    logging.info(f"Duration: {duration_sec:.2f} seconds")
-    logging.info(f"File size: {file_size:.2f} MB")
-    try:
-        sample_width = audio.sample_width * 8
-        channels = audio.channels
-        frame_rate = audio.frame_rate
-        bitrate = frame_rate * channels * sample_width
-        logging.info(f"Channels: {channels}, Frame Rate: {frame_rate}, Bitrate: {bitrate} bps")
-    except Exception as e:
-        logging.warning(f"Couldn't extract full audio metadata: {e}")
-
-def plot_waveform(audio, title):
-    samples = np.array(audio.get_array_of_samples())
-    if audio.channels == 2:
-        samples = samples.reshape((-1, 2))
-        samples = samples.mean(axis=1)  # Convert to mono for simplicity
-
-    step = max(1, len(samples) // 10000)
-    samples = samples[::step]
-
-    plt.figure(figsize=(15, 4))
-    plt.plot(samples, linewidth=0.5)
-    plt.title(f"Waveform: {title}")
-    plt.xlabel("Sample index")
-    plt.ylabel("Amplitude")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-def process_file(filepath, output_dir, mode, silence_thresh=-40, min_silence_len=2000, keep_silence=500, show_plot=False):
-    start_time = time.time()
+def process_file(filepath, output_dir, mode, silence_thresh, min_silence_len, keep_silence, plot, dbfs_plot, convert, auto, mp3_out):
     logging.info(f"Processing file: {filepath}")
+    
+    if convert:
+        logging.info("Converting to PCM WAV...")
+        filepath = convert_to_pcm(filepath)
+
     audio = AudioSegment.from_file(filepath)
-    print_audio_metadata(audio, filepath)
+    duration = len(audio) / 1000
+    size = os.path.getsize(filepath) / (1024 * 1024)
+    logging.info(f"Duration: {duration:.2f} seconds")
+    logging.info(f"File size: {size:.2f} MB")
+    logging.info(f"Channels: {audio.channels}, Frame Rate: {audio.frame_rate}, Bitrate: {audio.frame_rate * audio.sample_width * 8 * audio.channels} bps")
 
-    if show_plot:
-        plot_waveform(audio, Path(filepath).name)
+    if dbfs_plot:
+        plot_dbfs(audio)
 
-    filename = Path(filepath).stem
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if plot:
+        plot_waveform(audio)
 
-    if mode == 'split':
-        logging.info("Detecting silence to split audio...")
-        chunks = silence.split_on_silence(
-            audio,
-            min_silence_len=min_silence_len,
-            silence_thresh=silence_thresh,
-            keep_silence=keep_silence
-        )
-        logging.info(f"Detected {len(chunks)} segments")
-        for i, chunk in enumerate(chunks):
-            split_start = time.time()
-            out_path = output_dir / f"{filename}_segment_{i+1}.wav"
-            chunk.export(out_path, format="wav")
-            elapsed = time.time() - split_start
-            chunk_duration = len(chunk) / 1000.0
-            logging.info(f"Exported: {out_path} | Duration: {chunk_duration:.2f}s | Time Taken: {elapsed:.2f}s")
+    if silence_thresh is None:
+        silence_thresh = recommend_silence_threshold(audio)
+        logging.info(f"Recommended silence threshold: {silence_thresh} dBFS")
+        if not auto:
+            user_input = input(f"Use recommended threshold ({silence_thresh})? [Enter=yes / or type manual dBFS]: ")
+            if user_input.strip():
+                silence_thresh = float(user_input.strip())
 
-    elif mode == 'trim':
-        logging.info("Detecting non-silent ranges to trim audio...")
-        non_silent_ranges = silence.detect_nonsilent(
-            audio,
-            min_silence_len=min_silence_len,
-            silence_thresh=silence_thresh
-        )
-        if not non_silent_ranges:
-            logging.warning("No non-silent sections detected. Skipping.")
-            return
+    logging.info(f"Detecting silence to {mode} audio...")
+    segments = silence.detect_nonsilent(audio, min_silence_len=min_silence_len, silence_thresh=silence_thresh, seek_step=1)
+    logging.info(f"Detected {len(segments)} segments")
 
-        trimmed_audio = AudioSegment.empty()
-        for start, end in non_silent_ranges:
-            trimmed_audio += audio[start:end]
-            logging.debug(f"Keeping range {start} to {end} ms")
+    if not segments:
+        logging.warning("No non-silent segments found. Skipping file.")
+        return
 
-        out_path = output_dir / f"{filename}_trimmed.wav"
-        trimmed_audio.export(out_path, format="wav")
-        trimmed_duration = len(trimmed_audio) / 1000.0
-        logging.info(f"Exported trimmed file: {out_path} | Duration: {trimmed_duration:.2f}s")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-    total_elapsed = time.time() - start_time
-    logging.info(f"Finished processing {filepath} in {total_elapsed:.2f} seconds\n")
+    if mode == "split":
+        for i, (start, end) in enumerate(segments):
+            segment = audio[start:end]
+            out_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(filepath))[0]}_segment_{i+1}.wav")
+            t0 = time.time()
+            segment.export(out_path, format="wav")
+            t1 = time.time()
+            logging.info(f"Exported: {out_path} | Duration: {(end - start)/1000:.2f}s | Time Taken: {t1 - t0:.2f}s")
+            if mp3_out:
+                export_to_mp3(out_path)
+    elif mode == "trim":
+        combined = AudioSegment.empty()
+        for start, end in segments:
+            combined += audio[start:end]
+        filename = os.path.basename(filepath).rsplit('.', 1)[0] + "_trimmed.wav"
+        out_path = os.path.join(output_dir, filename)
+        combined.export(out_path, format="wav")
+        logging.info(f"Exported trimmed file: {out_path}")
+        if mp3_out:
+            export_to_mp3(out_path)
 
-def process_folder(folder_path, output_dir, mode, silence_thresh, min_silence_len, keep_silence, show_plot):
-    audio_extensions = ['.wav', '.mp3', '.flac']
-    all_files = list(Path(folder_path).rglob("*"))
-    audio_files = [f for f in all_files if f.suffix.lower() in audio_extensions]
-
-    logging.info(f"Found {len(audio_files)} audio files in folder: {folder_path}")
-    for file in audio_files:
-        out_dir = output_dir if output_dir else file.parent
-        process_file(file, out_dir, mode, silence_thresh, min_silence_len, keep_silence, show_plot)
 
 def main():
     parser = argparse.ArgumentParser(description="Rehearsal Audio Processor")
-    parser.add_argument("input", type=str, help="Input file or folder path")
-    parser.add_argument("--mode", choices=['split', 'trim'], required=True, help="Choose 'split' or 'trim' mode")
-    parser.add_argument("--output", type=str, default=None, help="Optional output folder")
-    parser.add_argument("--silence_thresh", type=int, default=-40, help="Silence threshold in dBFS")
-    parser.add_argument("--min_silence_len", type=int, default=2000, help="Minimum silence length in ms")
-    parser.add_argument("--keep_silence", type=int, default=500, help="Padding silence around segments in ms")
-    parser.add_argument("--plot", action="store_true", help="Display waveform plot before processing")
+    parser.add_argument("input", help="Input audio file")
+    parser.add_argument("--mode", choices=["split", "trim"], required=True)
+    parser.add_argument("--output", help="Output directory")
+    parser.add_argument("--silence_thresh", type=float, help="Silence threshold (dBFS)")
+    parser.add_argument("--min_silence_len", type=int, default=1000, help="Minimum silence length (ms)")
+    parser.add_argument("--keep_silence", type=int, default=200, help="Silence padding to keep (ms)")
+    parser.add_argument("--plot", action="store_true", help="Plot waveform")
+    parser.add_argument("--dbfs_plot", action="store_true", help="Plot dBFS profile")
+    parser.add_argument("--convert", action="store_true", help="Convert input to WAV/PCM before processing")
+    parser.add_argument("--auto", action="store_true", help="Auto accept recommended threshold")
+    parser.add_argument("--mp3_out", action="store_true", help="Convert final output to MP3")
     args = parser.parse_args()
 
-    input_path = Path(args.input)
-    output_dir = Path(args.output) if args.output else None
-
+    logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
     logging.info("Starting rehearsal audio processing tool...")
     logging.info(f"Mode: {args.mode}")
-    logging.info(f"Input: {input_path}")
+    logging.info(f"Input: {args.input}")
+
+    output_dir = args.output or os.path.dirname(args.input)
     logging.info(f"Output: {output_dir if output_dir else 'Same as input'}")
 
-    if input_path.is_file():
-        final_output = output_dir or input_path.parent
-        process_file(input_path, final_output, args.mode, args.silence_thresh, args.min_silence_len, args.keep_silence, args.plot)
-    elif input_path.is_dir():
-        process_folder(input_path, output_dir or input_path, args.mode, args.silence_thresh, args.min_silence_len, args.keep_silence, args.plot)
-    else:
-        logging.error("Invalid input path provided.")
+    start_time = time.time()
+    process_file(
+        filepath=args.input,
+        output_dir=output_dir,
+        mode=args.mode,
+        silence_thresh=args.silence_thresh,
+        min_silence_len=args.min_silence_len,
+        keep_silence=args.keep_silence,
+        plot=args.plot if not args.auto else False,
+        dbfs_plot=args.dbfs_plot if not args.auto else False,
+        convert=args.convert,
+        auto=args.auto,
+        mp3_out=args.mp3_out
+    )
+    total = time.time() - start_time
+    logging.info(f"Finished processing {args.input} in {total:.2f} seconds")
+
 
 if __name__ == "__main__":
     main()

@@ -1,10 +1,9 @@
-pydub==0.25.1
-openpyxl==3.1.2
-argparse==1.4.0
-et-xmlfile==1.1.0
-matplotlib==3.8.4
-numpy==1.26.4
-scipy==1.13.0
-librosa==0.10.1
-soundfile==0.12.1
-ffmpeg-python==0.2.0
+pydub==0.25.1	      # main.py	Core audio loading, trimming, silence detection
+matplotlib==3.8.4	  # main.py (plot, dbfs)	Plotting waveform and dBFS profiles
+librosa==0.10.2	      # main.py + benchmark	Audio analysis, waveform, smart silence suggestions
+soundfile==0.12.1	  # main.py + benchmark	Audio file I/O (especially WAV, PCM support)
+ffmpeg-python==0.2.0  # main.py	Audio conversion via FFmpeg
+numpy==1.26.4	      # main.py + benchmark	Numeric processing, waveform, stitching logic
+scipy==1.13.0	      # main.py (optional)	Signal processing (if you expand for future features)
+openpyxl==3.1.2	      # Planned features	Excel sheet export (song metadata in future phase)
+psutil==5.9.8	      # benchmark.py	CPU and memory profiling

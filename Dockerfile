@@ -8,11 +8,12 @@ RUN apt-get update && \
 # Set working directory
 WORKDIR /app
 
-# Copy all project files
-COPY . /app
-
-# Install Python dependencies
+# Copy requirements first for better caching
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy project files
+COPY . .
+
 # Default entrypoint
-ENTRYPOINT ["python", "rehearsal_tool.py"]
+ENTRYPOINT ["python", "main.py"]
