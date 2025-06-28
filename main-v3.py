@@ -80,6 +80,7 @@ def split_audio(audio, threshold, min_len=1000, keep_silence=200, out_prefix="se
 def save_audio(audio, path):
     audio.export(path, format="wav")
     print(f"[INFO] Exported: {path}")
+    print(f"New File size: {os.path.getsize(path) / (1024 * 1024)}")
 
 
 def process_file(path, mode, out_folder=None, silence_thresh=None, min_len=1000, keep_silence=200, plot=False, dbfs=False):
