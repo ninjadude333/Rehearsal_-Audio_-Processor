@@ -1,13 +1,13 @@
 pydub==0.25.1	      # main.py, song_finder.py	Core audio loading, trimming, silence detection
-matplotlib==3.8.4	  # main.py (plot, dbfs)	Plotting waveform and dBFS profiles
-librosa==0.10.2	      # main.py + benchmark + musicAnalyzer	Audio analysis, waveform, smart silence suggestions
-soundfile==0.12.1	  # main.py + benchmark	Audio file I/O (especially WAV, PCM support)
+matplotlib>=3.8.0	  # main.py (plot, dbfs)	Plotting waveform and dBFS profiles
+librosa>=0.10.0	      # main.py + benchmark + musicAnalyzer	Audio analysis, waveform, smart silence suggestions
+soundfile>=0.12.0	  # main.py + benchmark	Audio file I/O (especially WAV, PCM support)
 ffmpeg-python==0.2.0  # main.py	Audio conversion via FFmpeg
-numpy==1.26.4	      # main.py + benchmark + musicAnalyzer	Numeric processing, waveform, stitching logic
-scipy==1.13.0	      # main.py (optional)	Signal processing (if you expand for future features)
-openpyxl==3.1.2	      # Planned features	Excel sheet export (song metadata in future phase)
-psutil==5.9.8	      # benchmark.py	CPU and memory profiling
-pyacoustid==1.3.0     # musicAnalyzer.py	Audio fingerprinting for song detection
-requests==2.31.0      # musicAnalyzer.py	HTTP requests for API calls
-shazamio==0.7.0       # musicAnalyzer.py	Shazam song recognition API
+numpy>=1.22.4,<2.3	  # main.py + benchmark + musicAnalyzer	Numeric processing, waveform, stitching logic
+scipy>=1.13.0	      # main.py (optional)	Signal processing (if you expand for future features)
+openpyxl>=3.1.0	      # Planned features	Excel sheet export (song metadata in future phase)
+psutil>=5.9.0	      # benchmark.py	CPU and memory profiling
+pyacoustid>=1.3.0     # musicAnalyzer.py	Audio fingerprinting for song detection
+requests>=2.31.0      # musicAnalyzer.py	HTTP requests for API calls
+shazamio>=0.7.0       # musicAnalyzer.py	Shazam song recognition API
 # chromaprint (fpcalc) - install via: conda install -c conda-forge chromaprint
